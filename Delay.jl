@@ -25,7 +25,7 @@ end
 
 """
 
-    rs_bm_decoding_operations(n)
+    rs_bm_decoding_operations(n, k)
 
 return a tuple (nadditions, nmultiplications) required to decode a
 Reed-Solomon code of length n using the Berlekamp-Massey algorithm
@@ -52,7 +52,7 @@ return the time needed to compute na additions and nm multiplications.
 
 """
 function arithmetic_delay(na, nm; ta=1e-9, tm=1e-9)
-    return na*ta+nm*tm
+    return na*ta + nm*tm
 end
 
 """
@@ -89,23 +89,15 @@ function min_delay_mds(n, k, β, s, nrows, ncols; enc=true, dec=true)
 end
 
 """
-    overall_delay_mds(n, k, β, nrows, ncols)
+    mean_delay_mds(n, k, β, nrows, ncols)
 
-return the overall delay of the MDS-coded scheme.
+return the mean overall delay of the MDS-coded scheme.
 
 """
 function mean_delay_mds(n, k, β, s, nrows, ncols; enc=true, dec=true)
-
-    # straggler delay
     d = ExponentialOrder(β, n, k)
     delay = mean(d)
     delay += min_delay_mds(n, k, β, s, nrows, ncols, enc=enc, dec=dec)
-
-    # println("str. ", mean(d))
-    # println("mul. ", delay_mul)
-    # println("enc. ", delay_enc)
-    # println("dec. ", delay_dec)
-
     return delay
 end
 
@@ -118,13 +110,12 @@ function overall_delay_mds(n, β, s, nrows, ncols; enc=true, dec=true)
     k_opt = 1
     delay_mds = Inf
     for k in 1:n
-        delay = overall_delay_mds(n, k, β, s, nrows, ncols, enc=enc, dec=dec)
+        delay = mean_delay_mds(n, k, β, s, nrows, ncols, enc=enc, dec=dec)
         if delay < delay_mds
             delay_mds = delay
             k_opt = k
         end
     end
-    # println("k ", k_opt)
     return delay_mds
 end
 
@@ -225,7 +216,13 @@ function task_cdf_plot(n=100, k=25, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3, enc=
     return
 end
 
-function overall_cdf_plot(n=100, k=25, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3, enc=false, dec=true)
+"""
+    overall_cdf_plot(n=10, k=5, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3, enc=false, dec=true)
+
+Plot the distribution of the overall delay.
+
+"""
+function overall_cdf_plot(n=10, k=5, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3, enc=false, dec=true)
     n = 10
     k = 5
 
@@ -279,67 +276,16 @@ function overall_cdf_plot(n=100, k=25, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3, e
     return
 end
 
-# function overall_cdf_plot(n=100, k=25, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3, enc=false, dec=true)
-
-#     # network latency
-#     delay_mds = s
-#     delay_uncoded = s
-
-#     # computation delay
-#     delay_mul = arithmetic_delay(matrix_vector_operations(nrows, ncols)...)
-#     delay_mds += delay_mul / k
-#     delay_uncoded += delay_mul / n
-
-#     # encoding delay
-#     rows_per_worker = nrows / k
-#     delay_enc = arithmetic_delay(rs_fft_decoding_operations(n)...)
-#     delay_enc *= rows_per_worker * ncols
-#     if enc
-#         delay_mds += delay_enc
-#     end
-
-#     # decoding delay
-#     delay_dec = arithmetic_delay(rs_fft_decoding_operations(n)...)
-#     delay_dec *= rows_per_worker
-#     if dec
-#         delay_mds += delay_dec
-#     end
-
-#     # straggler delay
-#     ts = range(0, 20e-3, length=100)
-#     # ts = range(0, 200e-3, length=100)
-#     d = ExponentialOrder(β, n, k)
-#     vs = cdf.(d, ts.-delay_mds)
-#     plt.plot(ts./1e-3, vs, label="MDS")
-#     # savetable(ts, vs, "./figures/MatrixVectorCDF/data/overall_mds.txt")
-
-#     # ts = range(0, 60e-3, length=100)
-#     ts = range(0, 200e-3, length=100)
-#     d = ExponentialOrder(β, n, n)
-#     vs = cdf.(d, ts.-delay_uncoded)
-#     plt.plot(ts./1e-3, vs, label="Uncoded")
-#     # savetable(ts, vs, "./figures/MatrixVectorCDF/data/overall_uncoded.txt")
-#     # plt.plot(ts./1e-3, cdf.(d, ts.-s))
-#     # delay = mean(d) + s
-
-#     plt.xlim(0, 60)
-#     plt.ylim(0, 1)
-#     plt.xlabel("\$t\$ [ms]")
-#     plt.ylabel("\$\\Pr(t \\leq T)\$")
-#     plt.grid()
-#     plt.legend()
-# end
-
 """
 
 β=1e-4 is suggested in the WSC book
 
 """
-function overall_delay_plot(n=100, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3)
+function overall_delay_plot(n=100, β=10e-3, s=1e-4, ncols=1e3)
     nrowss = round.(Int, 10.0.^range(log10(ncols), log10(ncols)+2, length=100))
 
-    cdelay = communication_delay(nrows, ncols)
-    println("Comm. delay: ", cdelay)
+    # cdelay = communication_delay(nrows, ncols)
+    # println("Comm. delay: ", cdelay)
 
     # uncoded delay
     # β = communication_delay(nrows, ncols, n)
@@ -349,20 +295,20 @@ function overall_delay_plot(n=100, β=10e-3, s=1e-4, nrows=1e4, ncols=1e3)
     delays_uncoded .+= mean(d) + s
 
     # MDS codes
-    delays_mds = [overall_delay_mds(n, β, s, nrows, ncols) for nrows in nrowss]
+    delays_mds = [overall_delay_mds(n, β, s, nrows, ncols, enc=true, dec=true) for nrows in nrowss]
     plt.plot(nrowss, delays_mds./delays_uncoded, "-", label="MDS enc., dec.")
-    savetable(nrowss, delays_mds./delays_uncoded, "./figures/MatrixVectorDelay/data/mds_enc_dec.txt")
+    # savetable(nrowss, delays_mds./delays_uncoded, "./figures/MatrixVectorDelay/data/mds_enc_dec.txt")
 
-    delays_mds .= [overall_delay_mds(n, β, s, nrows, ncols, enc=false) for nrows in nrowss]
+    delays_mds .= [overall_delay_mds(n, β, s, nrows, ncols, enc=false, dec=true) for nrows in nrowss]
     plt.plot(nrowss, delays_mds./delays_uncoded, "-", label="MDS dec.")
-    savetable(nrowss, delays_mds./delays_uncoded, "./figures/MatrixVectorDelay/data/mds_dec.txt")
+    # savetable(nrowss, delays_mds./delays_uncoded, "./figures/MatrixVectorDelay/data/mds_dec.txt")
 
     # delays_mds .= [overall_delay_mds(n, β, nrows, ncols, dec=false) for nrows in nrowss]
     # plt.plot(nrowss, delays_mds./delays_uncoded, "--", label="MDS, enc.")
 
     delays_mds .= [overall_delay_mds(n, β, s, nrows, ncols, enc=false, dec=false) for nrows in nrowss]
     plt.plot(nrowss, delays_mds./delays_uncoded, "-", label="MDS")
-    savetable(nrowss, delays_mds./delays_uncoded, "./figures/MatrixVectorDelay/data/mds.txt")
+    # savetable(nrowss, delays_mds./delays_uncoded, "./figures/MatrixVectorDelay/data/mds.txt")
 
     plt.yscale("log")
     plt.xscale("log")
@@ -496,14 +442,12 @@ function google_fs_straggler_plot()
     plt.xlim(0, 150)
 end
 
-function gd_straggler_plot()
-    # % naive, 10: 0.23072916666666668
-    # % ignore 1, 10: 0.1453125
-    # % naive, 20: 0.2210526315789474
-    # % ignore 3, 20: 0.1610047846889952
-    # % naive, 30: 0.20703125
-    # % ignore 5, 30: 0.18463541666666666
+"""
 
+Plot coded gradient descent delay.
+
+"""
+function gd_straggler_plot()
     n = [10, 20, 30]
     naive = [0.23072916666666668, 0.2210526315789474, 0.20703125]
     ignore = [0.1453125, 0.1610047846889952, 0.18463541666666666]

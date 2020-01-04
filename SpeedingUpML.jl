@@ -3,6 +3,7 @@ using PyPlot
 using QuadGK
 using LambertW
 using Test
+using DataFrames, CSV
 using PyCall
 matplotlib2tikz = pyimport("matplotlib2tikz")
 
@@ -92,7 +93,7 @@ function validate_exporder(n=6, k=4, β=2.0, nsamples=10000000)
     return
 end
 
-function delay_ccdf(n, k, β; l=k, t=range(0, β, length=1000))
+function delay_ccdf(n, k, β; l=k, t=range(0, 2β, length=100))
     d = ExponentialOrder(β, n, k)
     return t, 1 .- cdf.(d, l.*t.-1/l)
 end
@@ -102,19 +103,26 @@ end
 Plot the CCDF of the delay as a function of time (Fig. 4a of Lee).
 
 """
-function delay_ccdf_plot(n=10, k=5, β=3.0)
-    t, v = delay_ccdf(n, k, β)
-    plt.semilogy(t, v, label="MDS \$(10, 5)\$")
+function delay_ccdf_plot(n=3, k=2, β=3.0)
+    # in slides
+    # n, k = 10, 5
 
-    t, v = delay_ccdf(n, n, β)
-    plt.semilogy(t, v, label="Uncoded")
+    t, v_mds = delay_ccdf(n, k, β)
+    plt.semilogy(t, v_mds, label="MDS \$($n, $k)\$")
 
-    t, v = delay_ccdf(n, 1, β)
-    plt.semilogy(t, v, label="Repetition")
+    t, v_uncoded = delay_ccdf(n, n, β)
+    plt.semilogy(t, v_uncoded, label="Uncoded")
+
+    t, v_rep = delay_ccdf(n, 1, β)
+    plt.semilogy(t, v_rep, label="Repetition")
 
     plt.legend()
-    plt.xlim(0, 2)
-    plt.ylim(1e-3, 1e0)
+    # plt.xlim(0, 2)
+    # plt.ylim(1e-3, 1e0)
+
+    plt.xlim(0, 6)
+    plt.ylim(1e-2, 1e0)
+
     plt.xlabel("\$t\$")
     plt.ylabel("\$\\Pr(t \\leq T)\$")
     plt.grid()
@@ -122,7 +130,9 @@ function delay_ccdf_plot(n=10, k=5, β=3.0)
     # ax.set_xticks(0:0.025:0.5, minor=true)
     plt.grid(true, which="major", ls="-")
     plt.grid(true, which="minor", ls=":")
-    savetikz("./figures/delay_ccdf.tex")
+    # savetikz("./figures/delay_ccdf.tex")
+    df = DataFrame(x=t, mds=v_mds, uncoded=v_uncoded, repetition=v_rep)
+    CSV.write("./figures/delay_ccdf.csv", df, delim=" ")
     return
 end
 
